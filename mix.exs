@@ -18,6 +18,7 @@ defmodule RabbitIot.MixProject do
   defp deps() do
     [
       {:amqp, "~> 3.3"},
+      {:jason, "~> 1.2"}
     ]
   end
 end

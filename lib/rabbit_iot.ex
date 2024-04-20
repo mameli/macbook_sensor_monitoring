@@ -67,9 +67,9 @@ defmodule RabbitIot do
           value: value
         }
 
-        IO.inspect(channel)
-        IO.inspect(json)
+        {:ok, data} = Jason.encode(json)
 
+        AMQP.Basic.publish(channel, "", "macbook_sensors", data)
       _ ->
         # Handle case when filtered_output is empty or doesn't contain the expected line
         IO.puts("No CPU Power data found")

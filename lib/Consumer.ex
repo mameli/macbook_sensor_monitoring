@@ -1,9 +1,21 @@
 defmodule Consumer do
-  def consume(channel) do
+  def consume() do
     IO.puts "Consuming message"
-    AMQP.Queue.declare(channel, "hello")
-    AMQP.Basic.consume(channel, "hello", nil, no_ack: true)
-    IO.puts " [*] Waiting for messages. To exit press CTRL+C, CTRL+C"
+
+    case AMQP.Connection.open() do
+      {:ok, connection} ->
+        case AMQP.Channel.open(connection) do
+          {:ok, channel} ->
+            AMQP.Queue.declare(channel, "macbook_sensors")
+            AMQP.Basic.consume(channel, "macbook_sensors", nil, no_ack: true)
+            IO.puts " [*] Waiting for messages. To exit press CTRL+C, CTRL+C"
+          {:error, reason} ->
+            {:stop, {:channel_open_error, reason}}
+        end
+
+      {:error, reason} ->
+        {:stop, {:connection_open_error, reason}}
+    end
   end
 
   def wait_for_messages do

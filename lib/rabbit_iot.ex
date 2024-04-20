@@ -1,17 +1,4 @@
 defmodule RabbitIot do
-  @moduledoc """
-  Documentation for `RabbitIot`.
-  """
-
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> RabbitIot.hello()
-      :world
-
-  """
   def hello do
     :world
   end
@@ -59,7 +46,12 @@ defmodule RabbitIot do
 
     case filtered_output do
       [line | _] ->
-        value = String.split(line, ":") |> List.last() |> String.trim()
+        value =
+          String.split(line, ":")
+          |> List.last()
+          |> String.trim()
+          |> String.split(" ")
+          |> List.first()
 
         json = %{
           name: "CPU Power",
@@ -68,8 +60,9 @@ defmodule RabbitIot do
         }
 
         {:ok, data} = Jason.encode(json)
-
+        IO.inspect(data)
         AMQP.Basic.publish(channel, "", "macbook_sensors", data)
+
       _ ->
         # Handle case when filtered_output is empty or doesn't contain the expected line
         IO.puts("No CPU Power data found")

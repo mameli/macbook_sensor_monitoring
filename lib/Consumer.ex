@@ -1,4 +1,18 @@
 defmodule Consumer do
+  use GenServer
+
+  def start_link(args \\ [], opts \\ []) do
+    GenServer.start_link(__MODULE__, args, opts)
+  end
+
+  def init(_args \\ []) do
+    consume()
+    tick()
+    {:ok, %{messages: []}}
+  end
+
+  defp tick, do: Process.send_after(self(), :tick, 60000)
+
   def consume() do
     IO.puts "Consuming message"
 
@@ -18,11 +32,20 @@ defmodule Consumer do
     end
   end
 
-  def wait_for_messages do
-    receive do
-      {:basic_deliver, payload, _meta} ->
-        IO.puts " [x] Received #{payload}"
-        wait_for_messages()
-    end
+  def handle_info({:basic_deliver, payload, _meta}, state) do
+    decoded_payload = Jason.decode!(payload)
+    IO.inspect(decoded_payload)
+    {:noreply, Map.update!(state, :messages, &([decoded_payload | &1]))}
+  end
+
+  def handle_info({:basic_consume_ok, _payload}, state) do
+    {:noreply, state}
+  end
+
+  def handle_info(:tick, state) do
+    IO.puts("Printing...")
+    IO.inspect(state.messages)
+    tick()
+    {:noreply, %{state | messages: []}}
   end
 end

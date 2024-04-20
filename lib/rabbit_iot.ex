@@ -16,23 +16,6 @@ defmodule RabbitIot do
     :world
   end
 
-  def connect do
-    IO.puts "Connecting to RabbitMQ"
-    {:ok, connection} = AMQP.Connection.open
-    {:ok, channel} = AMQP.Channel.open(connection)
-    {connection, channel}
-  end
-
-  def declare_queue(channel) do
-    IO.puts "Declaring queue"
-    AMQP.Queue.declare(channel, "hello")
-  end
-
-  def publish(channel, msg) do
-    IO.puts "Publishing message"
-    AMQP.Basic.publish(channel, "", "hello", msg)
-  end
-
   use GenServer
   require Logger
 
@@ -42,28 +25,61 @@ defmodule RabbitIot do
   end
 
   def init(_args \\ []) do
-    {:ok, content} = File.read(".env")
-    [_, pwd] = String.split(content, "=")
-    command = "echo #{pwd} | sudo -k -S powermetrics -s cpu_power"
-    Port.open({:spawn, command}, [:binary, :exit_status])
+    IO.puts("Connecting to RabbitMQ")
 
-    {:ok, %{latest_output: nil, exit_status: nil} }
+    case AMQP.Connection.open() do
+      {:ok, connection} ->
+        case AMQP.Channel.open(connection) do
+          {:ok, channel} ->
+            AMQP.Queue.declare(channel, "macbook_sensors")
+
+            {:ok, content} = File.read(".env")
+            [_, pwd] = String.split(content, "=")
+            command = "echo #{pwd} | sudo -k -S powermetrics -s cpu_power"
+            Port.open({:spawn, command}, [:binary, :exit_status])
+
+            {:ok, %{latest_output: nil, exit_status: nil, channel: channel}}
+
+          {:error, reason} ->
+            {:stop, {:channel_open_error, reason}}
+        end
+
+      {:error, reason} ->
+        {:stop, {:connection_open_error, reason}}
+    end
   end
 
-  # This callback handles data incoming from the command's STDOUT
-  def handle_info({_, {:data, text_line}}, state) do
-    latest_output = text_line |> String.trim
-    filtered_output = latest_output
-    |> String.split("\n")
-    |> Enum.filter(fn line -> String.starts_with?(line, "CPU Power:") end)
+  def handle_info({_, {:data, text_line}}, %{channel: channel} = state) do
+    latest_output = text_line |> String.trim()
 
-    Logger.info "Latest output: #{filtered_output}"
+    filtered_output =
+      latest_output
+      |> String.split("\n")
+      |> Enum.filter(fn line -> String.starts_with?(line, "CPU Power:") end)
+
+    case filtered_output do
+      [line | _] ->
+        value = String.split(line, ":") |> List.last() |> String.trim()
+
+        json = %{
+          name: "CPU Power",
+          unit: "mW",
+          value: value
+        }
+
+        IO.inspect(channel)
+        IO.inspect(json)
+
+      _ ->
+        # Handle case when filtered_output is empty or doesn't contain the expected line
+        IO.puts("No CPU Power data found")
+    end
 
     {:noreply, %{state | latest_output: latest_output}}
   end
 
   def handle_info({_, {:exit_status, status}}, state) do
-    Logger.info "External exit: :exit_status: #{status}"
+    Logger.info("External exit: :exit_status: #{status}")
 
     _ = %{state | exit_status: status}
     {:noreply, %{state | exit_status: status}}

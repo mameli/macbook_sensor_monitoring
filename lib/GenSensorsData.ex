@@ -1,4 +1,4 @@
-defmodule RabbitIot do
+defmodule GenSensorsData do
   def hello do
     :world
   end

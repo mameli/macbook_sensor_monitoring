@@ -12,13 +12,13 @@ defmodule RabbitIot.MixProject do
   end
 
   def application do
-    [applications: [:amqp]]
+    [extra_applications: [:amqp, :jason]]
   end
 
   defp deps() do
     [
       {:amqp, "~> 3.3"},
-      {:jason, "~> 1.2"}
+      {:jason, "~> 1.4"}
     ]
   end
 end

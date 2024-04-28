@@ -1,4 +1,4 @@
-defmodule Consumer do
+defmodule ReadSensorsData do
   use GenServer
 
   def start_link(args \\ [], opts \\ []) do
@@ -11,7 +11,7 @@ defmodule Consumer do
     {:ok, %{messages: []}}
   end
 
-  defp tick, do: Process.send_after(self(), :tick, 60000)
+  defp tick, do: Process.send_after(self(), :tick, 10000)
 
   def consume() do
     IO.puts "Consuming message"
@@ -43,8 +43,32 @@ defmodule Consumer do
   end
 
   def handle_info(:tick, state) do
-    IO.puts("Printing...")
-    IO.inspect(state.messages)
+    aggregated_data = Enum.reduce(state.messages, %{sum: 0, count: 0, peak: 0}, fn message, acc ->
+      value = case Float.parse(message["value"]) do
+        {value, ""} ->
+          value
+        _ ->
+          IO.puts("Invalid float: #{message["value"]}")
+          0.0
+      end
+      %{sum: acc.sum + value, count: acc.count + 1, peak: max(acc.peak, value)}
+    end)
+
+    aggregated_data = Map.put(aggregated_data, :mean, aggregated_data.sum / aggregated_data.count)
+
+    sd = %Sensors.SensorData{
+      sensor_name: state.messages |> List.first() |> Map.get("name"),
+      sensor_unit: state.messages |> List.first() |> Map.get("unit"),
+      sensor_mean_value: aggregated_data.mean,
+      sensor_count_value: aggregated_data.count,
+      sensor_peak_value: aggregated_data.peak,
+      insert_date_time: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+    }
+
+    IO.inspect(sd)
+
+    Sensors.Repo.insert(sd)
+
     tick()
     {:noreply, %{state | messages: []}}
   end

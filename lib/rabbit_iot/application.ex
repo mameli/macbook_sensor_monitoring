@@ -8,7 +8,7 @@ defmodule RabbitIot.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      Friends.Repo,
+      Sensors.Repo,
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

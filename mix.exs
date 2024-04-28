@@ -11,14 +11,21 @@ defmodule RabbitIot.MixProject do
     ]
   end
 
+  # Run "mix help compile.app" to learn about applications.
   def application do
-    [extra_applications: [:amqp, :jason]]
+    [
+      extra_applications: [:logger, :amqp, :jason],
+      mod: {RabbitIot.Application, []}
+    ]
   end
 
-  defp deps() do
+  # Run "mix help deps" to learn about dependencies.
+  defp deps do
     [
       {:amqp, "~> 3.3"},
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      {:ecto_sql, "~> 3.11"},
+      {:postgrex, "~> 0.17"}
     ]
   end
 end

@@ -18,7 +18,7 @@ defmodule GenSensorsData do
       {:ok, connection} ->
         case AMQP.Channel.open(connection) do
           {:ok, channel} ->
-            AMQP.Queue.declare(channel, "macbook_sensors")
+            AMQP.Exchange.declare(channel, "macbook_sensors", :fanout)
 
             {:ok, content} = File.read(".env")
             [_, pwd] = String.split(content, "=")
@@ -54,8 +54,8 @@ defmodule GenSensorsData do
         IO.inspect(cpu_data)
         IO.inspect(gpu_data)
 
-        AMQP.Basic.publish(channel, "", "macbook_sensors", cpu_data)
-        AMQP.Basic.publish(channel, "", "macbook_sensors", gpu_data)
+        AMQP.Basic.publish(channel, "macbook_sensors", "", cpu_data)
+        AMQP.Basic.publish(channel, "macbook_sensors", "", gpu_data)
 
       _ ->
         # Handle case when filtered_output is empty or doesn't contain the expected line

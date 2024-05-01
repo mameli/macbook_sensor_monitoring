@@ -1,5 +1,6 @@
 defmodule ReadSensorsData do
   use GenServer
+  @tick_time 30000
 
   def start_link(sensor_name) do
     GenServer.start_link(__MODULE__, %{sensor_name: sensor_name, messages: []}, name: __MODULE__)
@@ -11,7 +12,7 @@ defmodule ReadSensorsData do
     {:ok, state}
   end
 
-  defp tick, do: Process.send_after(self(), :tick, 10000)
+  defp tick, do: Process.send_after(self(), :tick, @tick_time)
 
   def consume() do
     IO.puts("Consuming message")
@@ -20,8 +21,10 @@ defmodule ReadSensorsData do
       {:ok, connection} ->
         case AMQP.Channel.open(connection) do
           {:ok, channel} ->
-            AMQP.Queue.declare(channel, "macbook_sensors")
-            AMQP.Basic.consume(channel, "macbook_sensors", nil, no_ack: true)
+            AMQP.Exchange.declare(channel, "macbook_sensors", :fanout)
+            {:ok, %{queue: queue_name}} = AMQP.Queue.declare(channel, "", exclusive: true)
+            AMQP.Queue.bind(channel, queue_name, "macbook_sensors")
+            AMQP.Basic.consume(channel, queue_name, nil, no_ack: true)
             IO.puts(" [*] Waiting for messages. To exit press CTRL+C, CTRL+C")
 
           {:error, reason} ->

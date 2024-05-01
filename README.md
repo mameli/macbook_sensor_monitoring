@@ -1,46 +1,46 @@
-# RabbitIot
-RabbitIot is an Elixir project that uses the powermetrics command to generate sensor data and send it to RabbitMQ. The project is designed to run in a Docker environment, with RabbitMQ and a PostgreSQL database running as Docker services.
+# Macbook Sensor Monitoring
+This project utilizes Elixir to monitor CPU and GPU usage on a MacBook. It employs Powermetrics to gather this data. Using a pub-sub approach with RabbitMQ and a fanout exchange, two consumers are set up to aggregate the data into a PostgreSQL database. Another service periodically reads from the database to detect any anomalies in the system's usage.
+
+![Sensor Monitoring](img/sensor_monitoring.png)
 
 ## Usage
 
-You have to install docker and docker-compose to run the project.
-Also Elixir is required.
+To run the project, you need to have Docker and Docker Compose installed, as well as Elixir.
 
 ```bash
 brew install elixir
 mix deps.get
 ```
 
-mix deps.get will install the dependencies listed in mix.exs.
+Running `mix deps.get` installs the dependencies listed in `mix.exs`.
 
 ```bash
 docker-compose up
 ```
 
-The docker-compose will start the RabbitMQ and the postgres database.
+This command starts RabbitMQ and the PostgreSQL database.
 
-To initialize the database you have to run the following command:
+To initialize the database, execute the following commands:
 
 ```bash
 mix ecto.create
 mix ecto.migrate
 ```
 
-To start the server you have to run the following command:
-
-You need to create a .env file with the following content:
+Before starting the server, create a `.env` file with the following content:
 
 ```bash
 password=YOUR_SUDO_PASSWORD
 ```
-This is required to run the powermetrics command.
 
-There are three components in the project:
-- GenSensorData: This component is responsible for generating the sensor data from powermetrics and sending it to the RabbitMQ.
-- ReadSensorData: This component is responsible for reading the sensor data from the RabbitMQ and storing it in the database.
-- ThrottlingDetector: This component is responsible for detecting the throttling events and storing them in the database.
+This is necessary to run the `powermetrics` command.
 
-You can start the components by running the following commands in different terminals:
+The project consists of three components:
+
+- **GenSensorData**: Generates sensor data from powermetrics and sends it to RabbitMQ.
+- **ReadSensorData**: Reads sensor data from RabbitMQ and stores it in the database.
+- **ThrottlingDetector**: Detects throttling events and stores them in the database.
+You can start each component by running the following commands in different terminals:
 
 ```bash
 iex -S mix run --no-halt -e "GenSensorsData.start_link"

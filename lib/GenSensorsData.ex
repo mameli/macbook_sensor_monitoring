@@ -42,7 +42,9 @@ defmodule GenSensorsData do
     filtered_output =
       latest_output
       |> String.split("\n")
-      |> Enum.filter(fn line -> String.starts_with?(line, "CPU Power:") or String.starts_with?(line, "GPU Power") end)
+      |> Enum.filter(fn line ->
+        String.starts_with?(line, "CPU Power:") or String.starts_with?(line, "GPU Power")
+      end)
 
     case filtered_output do
       ["CPU Power: " <> cpu_power, "GPU Power: " <> gpu_power | _] ->

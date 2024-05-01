@@ -1,14 +1,14 @@
 defmodule ReadSensorsData do
   use GenServer
 
-  def start_link(args \\ [], opts \\ []) do
-    GenServer.start_link(__MODULE__, args, opts)
+  def start_link(sensor_name) do
+    GenServer.start_link(__MODULE__, %{sensor_name: sensor_name, messages: []}, name: __MODULE__)
   end
 
-  def init(_args \\ []) do
+  def init(state) do
     consume()
     tick()
-    {:ok, %{messages: []}}
+    {:ok, state}
   end
 
   defp tick, do: Process.send_after(self(), :tick, 10000)
@@ -34,9 +34,14 @@ defmodule ReadSensorsData do
   end
 
   def handle_info({:basic_deliver, payload, _meta}, state) do
-    decoded_payload = Jason.decode!(payload)
-    IO.inspect(decoded_payload)
-    {:noreply, Map.update!(state, :messages, &[decoded_payload | &1])}
+    message = Jason.decode!(payload)
+
+    if message["name"] == state.sensor_name do
+      IO.inspect(message)
+      {:noreply, %{state | messages: [message | state.messages]}}
+    else
+      {:noreply, state}
+    end
   end
 
   def handle_info({:basic_consume_ok, _payload}, state) do

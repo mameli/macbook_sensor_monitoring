@@ -3,9 +3,13 @@ defmodule ThrottlingDetector do
   use GenServer
   require Logger
 
-  @time_window 10 * 60
-  @peak_cpu_threshold 500
-  @high_cpu_usage_threshold 300
+  @minutes 5 * 60
+  @tick_time 1000 * @minutes
+  @time_window @minutes
+  @peak_cpu_threshold 1000
+  @high_cpu_usage_threshold 800
+  @peak_gpu_threshold 500
+  @high_gpu_usage_threshold 300
 
   # GenServer API
   def start_link(args \\ [], opts \\ []) do
@@ -23,31 +27,36 @@ defmodule ThrottlingDetector do
     latest_insert_time = latest_sensor_data.insert_date_time
     window_start_time = NaiveDateTime.add(latest_insert_time, -@time_window)
 
-    sd_list =
-      Sensors.SensorData
-      |> Ecto.Query.where([sd], sd.insert_date_time > ^window_start_time)
-      |> Sensors.Repo.all()
+    cpu_power_aggregated_data =
+      fetch_sensor_data("CPU Power", window_start_time) |> aggregate_sensor_data()
 
-    %{count: count, sum: sum, peak: peak} =
-      sd_list
-      |> Enum.reduce(%{sum: 0, count: 0, peak: 0}, fn sd, acc ->
-        %{
-          sum: acc.sum + sd.sensor_mean_value,
-          count: acc.count + 1,
-          peak: max(acc.peak, sd.sensor_peak_value)
-        }
-      end)
+    gpu_power_aggregated_data =
+      fetch_sensor_data("GPU Power", window_start_time) |> aggregate_sensor_data()
 
-    mean = sum / count
+    cpu_mean = cpu_power_aggregated_data.sum / cpu_power_aggregated_data.count
+    gpu_mean = gpu_power_aggregated_data.sum / gpu_power_aggregated_data.count
 
-    if mean > @high_cpu_usage_threshold or peak > @peak_cpu_threshold do
-      Logger.info("High CPU usage detected")
+    check_list = [
+      cpu_mean > @high_cpu_usage_threshold,
+      cpu_power_aggregated_data.peak > @peak_cpu_threshold,
+      gpu_mean > @high_gpu_usage_threshold,
+      gpu_power_aggregated_data.peak > @peak_gpu_threshold
+    ]
+
+    if Enum.any?(check_list) do
+      Logger.info("High usage detected")
 
       ad = %Sensors.AnomalyData{
-        flag_high_cpu_usage: true,
-        flag_high_gpu_usage: false,
+        flag_high_cpu_usage:
+          cpu_mean > @high_cpu_usage_threshold ||
+            cpu_power_aggregated_data.peak > @peak_cpu_threshold,
+        flag_high_gpu_usage:
+          gpu_mean > @high_gpu_usage_threshold ||
+            gpu_power_aggregated_data.peak > @peak_gpu_threshold,
         insert_date_time: latest_insert_time
       }
+
+      Logger.info("Anomaly data: cpu #{inspect(cpu_power_aggregated_data)}, gpu #{inspect(gpu_power_aggregated_data)}")
 
       Sensors.Repo.insert(ad)
     end
@@ -56,5 +65,20 @@ defmodule ThrottlingDetector do
     {:noreply, %{messages: []}}
   end
 
-  defp tick, do: Process.send_after(self(), :tick, @time_window)
+  defp tick, do: Process.send_after(self(), :tick, @tick_time)
+
+  defp fetch_sensor_data(sensor_name, window_start_time) do
+    Sensors.SensorData
+    |> Ecto.Query.where([sd], sd.insert_date_time > ^window_start_time)
+    |> Ecto.Query.where([sd], sd.sensor_name == ^sensor_name)
+    |> Sensors.Repo.all()
+  end
+
+  defp aggregate_sensor_data(sensor_data_list) do
+    Enum.reduce(sensor_data_list, %{count: 0, sum: 0, peak: 0}, fn sd, acc ->
+      value = sd.sensor_mean_value
+      peak = sd.sensor_peak_value
+      %{count: acc.count + 1, sum: acc.sum + value, peak: max(acc.peak, peak)}
+    end)
+  end
 end

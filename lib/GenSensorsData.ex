@@ -22,7 +22,7 @@ defmodule GenSensorsData do
 
             {:ok, content} = File.read(".env")
             [_, pwd] = String.split(content, "=")
-            command = "echo #{pwd} | sudo -k -S powermetrics -s cpu_power"
+            command = "echo #{pwd} | sudo -k -S powermetrics -s cpu_power, gpu_power"
             Port.open({:spawn, command}, [:binary, :exit_status])
 
             {:ok, %{latest_output: nil, exit_status: nil, channel: channel}}
@@ -42,26 +42,18 @@ defmodule GenSensorsData do
     filtered_output =
       latest_output
       |> String.split("\n")
-      |> Enum.filter(fn line -> String.starts_with?(line, "CPU Power:") end)
+      |> Enum.filter(fn line -> String.starts_with?(line, "CPU Power:") or String.starts_with?(line, "GPU Power") end)
 
     case filtered_output do
-      [line | _] ->
-        value =
-          String.split(line, ":")
-          |> List.last()
-          |> String.trim()
-          |> String.split(" ")
-          |> List.first()
+      ["CPU Power: " <> cpu_power, "GPU Power: " <> gpu_power | _] ->
+        cpu_data = extract_value(cpu_power) |> create_json("CPU Power", "mW")
+        gpu_data = extract_value(gpu_power) |> create_json("GPU Power", "mW")
 
-        json = %{
-          name: "CPU Power",
-          unit: "mW",
-          value: value
-        }
+        IO.inspect(cpu_data)
+        IO.inspect(gpu_data)
 
-        {:ok, data} = Jason.encode(json)
-        IO.inspect(data)
-        AMQP.Basic.publish(channel, "", "macbook_sensors", data)
+        AMQP.Basic.publish(channel, "", "macbook_sensors", cpu_data)
+        AMQP.Basic.publish(channel, "", "macbook_sensors", gpu_data)
 
       _ ->
         # Handle case when filtered_output is empty or doesn't contain the expected line
@@ -76,5 +68,23 @@ defmodule GenSensorsData do
 
     _ = %{state | exit_status: status}
     {:noreply, %{state | exit_status: status}}
+  end
+
+  defp extract_value(power_string) do
+    power_string
+    |> String.trim()
+    |> String.split(" ")
+    |> List.first()
+  end
+
+  defp create_json(power_string_value, name, unit) do
+    json = %{
+      name: name,
+      unit: unit,
+      value: power_string_value
+    }
+
+    {:ok, data} = Jason.encode(json)
+    data
   end
 end

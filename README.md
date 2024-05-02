@@ -50,3 +50,21 @@ iex -S mix run --no-halt -e "ReadSensorsData.start_link(\"GPU Power\")"
 
 iex -S mix run --no-halt -e "ThrottlingDetector.start_link"
 ```
+
+For a "real" deployment, you can add in the application supervisor the children to start the components automatically. In the rabbit_iot/application.ex file, add the following children:
+
+```elixir
+children = [
+    Sensors.Repo,
+    {GenSensorsData, []},
+    Supervisor.child_spec({ReadSensorsData, "CPU Power"}, id: :consumer_1),
+    Supervisor.child_spec({ReadSensorsData, "GPU Power"}, id: :consumer_2),
+    ThrottlingDetector
+]
+```
+
+Then, start the application with:
+
+```bash
+iex -S mix
+```

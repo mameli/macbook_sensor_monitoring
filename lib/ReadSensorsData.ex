@@ -1,9 +1,10 @@
 defmodule ReadSensorsData do
   use GenServer
-  @tick_time 30000
+  @tick_time 10000
 
   def start_link(sensor_name) do
-    GenServer.start_link(__MODULE__, %{sensor_name: sensor_name, messages: []}, name: __MODULE__)
+    worker_name = String.to_atom("#{__MODULE__}_#{sensor_name}")
+    GenServer.start_link(__MODULE__, %{sensor_name: sensor_name, messages: []}, name: worker_name)
   end
 
   def init(state) do
@@ -25,7 +26,7 @@ defmodule ReadSensorsData do
             {:ok, %{queue: queue_name}} = AMQP.Queue.declare(channel, "", exclusive: true)
             AMQP.Queue.bind(channel, queue_name, "macbook_sensors")
             AMQP.Basic.consume(channel, queue_name, nil, no_ack: true)
-            IO.puts(" [*] Waiting for messages. To exit press CTRL+C, CTRL+C")
+            IO.puts(" [*] Waiting for messages")
 
           {:error, reason} ->
             {:stop, {:channel_open_error, reason}}
@@ -48,6 +49,13 @@ defmodule ReadSensorsData do
   end
 
   def handle_info({:basic_consume_ok, _payload}, state) do
+    {:noreply, state}
+  end
+
+  def handle_info(:tick, %{messages: []} = state) do
+    IO.puts("No messages to process for sensor: #{state.sensor_name}")
+
+    tick()
     {:noreply, state}
   end
 

@@ -3,10 +3,10 @@ defmodule ThrottlingDetector do
   use GenServer
   require Logger
 
-  @minutes 5 * 60
-  @tick_time 1000 * @minutes
-  @time_window @minutes
-  @peak_cpu_threshold 1000
+  @minutes 5 * 60 # 5 minutes in seconds
+  @tick_time 1000 * @minutes # 5 minutes in milliseconds
+  @time_window @minutes # 5 minutes in seconds
+  @peak_cpu_threshold 100
   @high_cpu_usage_threshold 800
   @peak_gpu_threshold 500
   @high_gpu_usage_threshold 300

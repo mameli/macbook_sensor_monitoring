@@ -1,8 +1,4 @@
 defmodule GenSensorsData do
-  def hello do
-    :world
-  end
-
   use GenServer
   require Logger
 
